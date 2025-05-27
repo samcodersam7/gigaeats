@@ -1,0 +1,207 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: gigaeats-postgres
+    environment:
+      POSTGRES_DB: gigaeats_dev
+      POSTGRES_USER: gigaeats_user
+      POSTGRES_PASSWORD: gigaeats_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - gigaeats-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gigaeats_user -d gigaeats_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: gigaeats-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gigaeats-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: gigaeats-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - USER_SERVICE_URL=http://user-service:3001
+      - VENDOR_SERVICE_URL=http://vendor-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - PAYMENT_SERVICE_URL=http://payment-service:3004
+      - INTEGRATION_SERVICE_URL=http://integration-service:3005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/api-gateway:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # User Management Service
+  user-service:
+    build:
+      context: .
+      dockerfile: apps/user-service/Dockerfile
+    container_name: gigaeats-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_PORT=3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/user-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Vendor Management Service
+  vendor-service:
+    build:
+      context: .
+      dockerfile: apps/vendor-service/Dockerfile
+    container_name: gigaeats-vendor-service
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_PORT=3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/vendor-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Order Management Service
+  order-service:
+    build:
+      context: .
+      dockerfile: apps/order-service/Dockerfile
+    container_name: gigaeats-order-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_PORT=3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/order-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Payment & Commission Service
+  payment-service:
+    build:
+      context: .
+      dockerfile: apps/payment-service/Dockerfile
+    container_name: gigaeats-payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_PORT=3004
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/payment-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Integration Service
+  integration-service:
+    build:
+      context: .
+      dockerfile: apps/integration-service/Dockerfile
+    container_name: gigaeats-integration-service
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://gigaeats_user:gigaeats_password@postgres:5432/gigaeats_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_PORT=3005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gigaeats-network
+    volumes:
+      - ./apps/integration-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  gigaeats-network:
+    driver: bridge
